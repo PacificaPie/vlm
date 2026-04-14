@@ -1,0 +1,43 @@
+name: geoqa
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip
+
+  - pip:
+    # PyTorch（与 Bouchet CUDA 12.1.1 匹配）
+    - torch==2.3.1
+    - torchvision==0.18.1
+    - --extra-index-url https://download.pytorch.org/whl/cu121
+
+    # Transformers 生态
+    - transformers>=4.40.0
+    - tokenizers>=0.19.0
+    - accelerate>=0.30.0
+    - peft>=0.11.0
+    - datasets>=2.19.0
+
+    # Flash Attention（在 cluster 上编译安装，需要 CUDA）
+    # 首次运行前执行: pip install flash-attn --no-build-isolation
+    # - flash-attn>=2.5.0
+
+    # 数据处理
+    - pyarrow>=14.0.0
+    - Pillow>=10.0.0
+    - numpy>=1.26.0
+    - tqdm
+
+    # 训练日志
+    - swanlab>=0.3.0
+
+    # 推理与评测
+    - gradio>=4.0.0
+
+    # 其他工具
+    - scipy
+    - scikit-learn

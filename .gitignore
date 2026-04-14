@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Datasets & model weights (large binary files)
+dataset/GeoQA_cache/
+dataset/geoqa/*.parquet
+*.arrow
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Logs & experiment tracking
+trainer/swanlog/
+logs/
+out/
+*.out
+*.err
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Editor / tools
+.claude/
+.idea/
+.vscode/
+*.swp
+
+# Secrets
+.env
+*.key
