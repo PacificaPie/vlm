@@ -12,11 +12,10 @@
 #SBATCH --mail-user=YOUR_EMAIL@yale.edu
 
 # ---------- 环境 ----------
-source ~/miniconda3/bin/activate
-conda activate geoqa
+export PATH="/home/cpsc4770_rz377/.conda/envs/geoqa/bin:$PATH"
 
 # 项目根目录
-cd $HOME/project_cpsc4770/vlm
+cd /nfs/roberts/scratch/cpsc4770/cpsc4770_rz377/vlm
 
 mkdir -p logs out/geoqa
 
@@ -28,7 +27,7 @@ torchrun \
     --nproc_per_node=2 \
     --master_port=29500 \
     trainer/train_sft_geoqa.py \
-    --model_path    ~/scratch_cpsc4770/InternVL3-8B \
+    --model_path    /nfs/roberts/scratch/cpsc4770/cpsc4770_rz377/InternVL3-8B \
     --train_data    dataset/geoqa/sft_train.parquet \
     --save_dir      out/geoqa \
     --lora_rank     16 \
