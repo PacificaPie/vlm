@@ -6,13 +6,15 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=02:00:00
-#SBATCH --output=/nfs/roberts/scratch/cpsc4770/cpsc4770_rz377/eval_%j.log
+#SBATCH --output=logs/eval_%j.out
+#SBATCH --error=logs/eval_%j.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=zhangruoyang511@gmail.com
 
 export PATH="/home/cpsc4770_rz377/.conda/envs/geoqa/bin:$PATH"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cd /nfs/roberts/scratch/cpsc4770/cpsc4770_rz377/vlm
+mkdir -p logs out/geoqa
 
 echo "=== Baseline ==="
 python scripts/eval_geoqa.py \
