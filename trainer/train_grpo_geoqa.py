@@ -234,8 +234,13 @@ def main():
         m = PeftModel.from_pretrained(m, args.adapter_path)
         return m.merge_and_unload().to(args.device)
 
+    IMG_CONTEXT_TOKEN = '<IMG_CONTEXT>'
+    img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
+
     model     = load_model()
     ref_model = load_model()
+    model.img_context_token_id     = img_context_token_id
+    ref_model.img_context_token_id = img_context_token_id
     for p in ref_model.parameters():
         p.requires_grad = False
     ref_model.eval()

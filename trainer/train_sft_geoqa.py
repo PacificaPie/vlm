@@ -304,6 +304,10 @@ def main():
         use_flash_attn=False,
     ).to(args.device)
 
+    # InternVL3 必须设置 img_context_token_id，否则无法定位图像 token 位置
+    IMG_CONTEXT_TOKEN = '<IMG_CONTEXT>'
+    model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
+
     # 图像处理器（448×448 单 tile）
     image_processor = CLIPImageProcessor.from_pretrained(
         args.model_path,
