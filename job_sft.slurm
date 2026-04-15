@@ -34,8 +34,8 @@ torchrun \
     --warmup_steps  200 \
     --warmup_lr     1e-4 \
     --epochs        3 \
-    --batch_size    2 \
-    --accumulation_steps 16 \
+    --batch_size    1 \
+    --accumulation_steps 32 \
     --learning_rate 1e-5 \
     --max_length    1024 \
     --dtype         bfloat16 \
@@ -43,4 +43,4 @@ torchrun \
     --log_interval  10 \
     --save_interval 200
 
-# 有效 batch size = 2 (per GPU) × 1 (GPU) × 16 (accumulation) = 32 ≈ proposal 的 batch_size=32
+# 有效 batch size = 1 (per GPU) × 1 (GPU) × 32 (accumulation) = 32 ≈ proposal 的 batch_size=32
