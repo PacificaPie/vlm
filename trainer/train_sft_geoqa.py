@@ -215,9 +215,10 @@ def train_epoch(epoch, model, loader, optimizer, scaler, autocast_ctx,
 def _save(model, args, suffix='final'):
     os.makedirs(args.save_dir, exist_ok=True)
     path = os.path.join(args.save_dir, f'sft_geoqa_{suffix}')
-    # 用 peft 的 save_pretrained 只保存 LoRA adapter（体积小）
-    # 若是 warmup 阶段（无 LoRA），用标准 save_pretrained
     raw = model.module if isinstance(model, DDP) else model
+    # 先 merge LoRA，保存干净的全参数模型（方便 GRPO 阶段直接 from_pretrained 加载）
+    if hasattr(raw, 'language_model') and hasattr(raw.language_model, 'merge_and_unload'):
+        raw.language_model = raw.language_model.merge_and_unload()
     if hasattr(raw, 'save_pretrained'):
         raw.save_pretrained(path)
         Logger(f'Saved → {path}')

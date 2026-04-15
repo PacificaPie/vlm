@@ -23,6 +23,7 @@ import json
 import time
 import argparse
 import warnings
+import glob
 
 __package__ = "trainer"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -32,6 +33,8 @@ import torch.nn.functional as F
 import torch.distributed as dist
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, DistributedSampler
+
+from safetensors.torch import load_file as load_safetensors
 
 from transformers import AutoTokenizer, AutoModel, CLIPImageProcessor
 from peft import PeftModel, LoraConfig, get_peft_model, TaskType
@@ -231,8 +234,25 @@ def main():
             args.model_path, torch_dtype=dtype, trust_remote_code=True,
             use_flash_attn=False,
         )
-        m = PeftModel.from_pretrained(m, args.adapter_path)
-        return m.merge_and_unload().to(args.device)
+        # sft_geoqa_final 是用 InternVLChatModel.save_pretrained 保存的完整模型，
+        # language_model 子模块当时是 PeftModel，state_dict key 带 PEFT 结构。
+        # 恢复：重套相同 LoRA config → strict=False 加载 → merge。
+        _sft_lora_cfg = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            r=16, lora_alpha=32, lora_dropout=0.05,
+            target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj',
+                            'gate_proj', 'up_proj', 'down_proj'],
+        )
+        m.language_model = get_peft_model(m.language_model, _sft_lora_cfg)
+        shard_files = sorted(
+            glob.glob(os.path.join(args.adapter_path, '*.safetensors'))
+        )
+        full_state = {}
+        for sf in shard_files:
+            full_state.update(load_safetensors(sf))
+        m.load_state_dict(full_state, strict=False)
+        m.language_model = m.language_model.merge_and_unload()
+        return m.to(args.device)
 
     IMG_CONTEXT_TOKEN = '<IMG_CONTEXT>'
     img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)

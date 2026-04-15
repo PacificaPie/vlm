@@ -35,14 +35,17 @@ from collections import defaultdict
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 warnings.filterwarnings('ignore')
 
+import glob
+
 import torch
 import pyarrow.parquet as pq
 from PIL import Image
 import io
 from tqdm import tqdm
+from safetensors.torch import load_file as load_safetensors
 
 from transformers import AutoTokenizer, AutoModel, CLIPImageProcessor
-from peft import PeftModel
+from peft import PeftModel, LoraConfig, get_peft_model, TaskType
 
 
 # ==================== 答案提取 ====================
@@ -111,10 +114,14 @@ def evaluate(model, tokenizer, image_processor, image_token_str,
         )['pixel_values'].to(args.device)
 
         # 推理
+        image_flags = torch.ones(
+            pixel_values.shape[0], 1, dtype=torch.long, device=args.device
+        )
         with torch.no_grad():
             output_ids = model.generate(
                 input_ids=input_ids,
                 pixel_values=pixel_values,
+                image_flags=image_flags,
                 max_new_tokens=args.max_new_tokens,
                 do_sample=False,        # greedy，保证可复现
                 temperature=1.0,
@@ -168,6 +175,8 @@ def main():
     project_root = os.path.dirname(script_dir)
     if not os.path.isabs(args.test_data):
         args.test_data = os.path.join(project_root, args.test_data)
+    if args.adapter_path and not os.path.isabs(args.adapter_path):
+        args.adapter_path = os.path.join(project_root, args.adapter_path)
 
     dtype = torch.bfloat16 if args.dtype == 'bfloat16' else torch.float16
 
@@ -181,11 +190,42 @@ def main():
     )
 
     if args.adapter_path:
-        print(f'加载 LoRA adapter: {args.adapter_path}')
-        model = PeftModel.from_pretrained(model, args.adapter_path)
-        model = model.merge_and_unload()   # 合并权重，推理更快
+        if args.mode == 'sft':
+            # sft_geoqa_final 是用 InternVLChatModel.save_pretrained 保存的完整模型，
+            # 但其 language_model 子模块当时是 PeftModel，所以 state_dict key 中带有
+            # "base_model.model." 前缀和 "base_layer / lora_A / lora_B" 结构。
+            # 恢复方法：对 language_model 重新套上相同 LoRA config，
+            # 用 strict=False 加载全部 safetensors，再 merge_and_unload。
+            print(f'[SFT] 加载 SFT 权重（PEFT 嵌入格式）: {args.adapter_path}')
+            _lora_cfg = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                r=16, lora_alpha=32, lora_dropout=0.05,
+                target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj',
+                                'gate_proj', 'up_proj', 'down_proj'],
+            )
+            model.language_model = get_peft_model(model.language_model, _lora_cfg)
+            shard_files = sorted(
+                glob.glob(os.path.join(args.adapter_path, '*.safetensors'))
+            )
+            if not shard_files:
+                raise FileNotFoundError(
+                    f'No .safetensors files found in {args.adapter_path}'
+                )
+            full_state = {}
+            for sf in shard_files:
+                full_state.update(load_safetensors(sf))
+            missing, unexpected = model.load_state_dict(full_state, strict=False)
+            print(f'  state_dict loaded: {len(missing)} missing, {len(unexpected)} unexpected keys')
+            model.language_model = model.language_model.merge_and_unload()
+            print('  LoRA merged.')
+        else:
+            # grpo: 用标准 PEFT adapter（adapter_config.json + adapter_model.safetensors）
+            print(f'[GRPO] 加载 LoRA adapter: {args.adapter_path}')
+            model = PeftModel.from_pretrained(model, args.adapter_path)
+            model = model.merge_and_unload()
 
     model = model.to(args.device).eval()
+    model.img_context_token_id = tokenizer.convert_tokens_to_ids('<IMG_CONTEXT>')
 
     image_processor = CLIPImageProcessor.from_pretrained(
         args.model_path, size={'height': 448, 'width': 448}
