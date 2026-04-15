@@ -154,9 +154,16 @@ def train_epoch(epoch, model, loader, optimizer, scaler, autocast_ctx,
             pg['lr'] = lr
 
         with autocast_ctx:
+            # image_flags: InternVL3 需要此参数标记哪些样本有图像
+            # 单图模式下每个样本对应 1 个 tile，全部置 1
+            image_flags = torch.ones(
+                pixel_values.size(0), 1,
+                dtype=torch.long, device=args.device
+            )
             outputs = model(
                 input_ids=X,
                 pixel_values=pixel_values,
+                image_flags=image_flags,
                 labels=None,          # 自己算 loss，保留 loss_mask 的精确控制
             )
             logits = outputs.logits   # [B, L, V]

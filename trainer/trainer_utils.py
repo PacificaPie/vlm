@@ -205,17 +205,10 @@ class GRPOCollator:
         prompt_ids = torch.stack(prompt_ids_list, dim=0)
         attention_mask = torch.stack(attention_mask_list, dim=0)
         
-        # 处理图像
+        # 处理图像：每个样本固定 1 张图，直接 cat 成 [B, C, H, W]
         pixel_values_list = [f['pixel_values'] for f in features]
-        max_images = max(pv.shape[0] for pv in pixel_values_list)
-        batch_size = len(pixel_values_list)
-        
-        _, c, h, w = pixel_values_list[0].shape
-        padded_pixel_values = torch.zeros(batch_size, max_images, c, h, w)
-        
-        for i, pv in enumerate(pixel_values_list):
-            num_images = pv.shape[0]
-            padded_pixel_values[i, :num_images] = pv
+        # pv 形状为 [1, C, H, W]，cat 后得 [B, C, H, W]
+        padded_pixel_values = torch.cat(pixel_values_list, dim=0)
         
         result = {
             'prompt_ids': prompt_ids,
@@ -319,10 +312,15 @@ class GRPOTrainerBase:
                 break
             
             with torch.no_grad():
+                image_flags = torch.ones(
+                    pixel_values.size(0), 1,
+                    dtype=torch.long, device=self.device
+                )
                 outputs = self.model(
                     input_ids=generated,
                     attention_mask=current_attention_mask,
                     pixel_values=pixel_values,
+                    image_flags=image_flags,
                 )
             
             # 温度采样：温度越高越随机，越低越确定
@@ -358,10 +356,15 @@ class GRPOTrainerBase:
             token_log_probs: 每个 token 的 log prob
             response_mask: 最终的 response mask
         """
+        image_flags = torch.ones(
+            pixel_values.size(0), 1,
+            dtype=torch.long, device=pixel_values.device
+        )
         outputs = model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             pixel_values=pixel_values,
+            image_flags=image_flags,
         )
         
         # 错位：用位置 i 的 logits 预测位置 i+1 的 token
