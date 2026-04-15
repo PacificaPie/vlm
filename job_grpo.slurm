@@ -9,7 +9,7 @@
 #SBATCH --output=logs/grpo_%j.out
 #SBATCH --error=logs/grpo_%j.err
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=YOUR_EMAIL@yale.edu
+#SBATCH --mail-user=zhangruoyang511@gmail.com
 
 export PATH="/home/cpsc4770_rz377/.conda/envs/geoqa/bin:$PATH"
 
