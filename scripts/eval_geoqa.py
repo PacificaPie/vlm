@@ -115,14 +115,11 @@ def evaluate(model, tokenizer, image_processor, image_token_str,
         )['pixel_values'].to(device=args.device, dtype=_dtype)
 
         # 推理
-        image_flags = torch.ones(
-            pixel_values.shape[0], 1, dtype=torch.long, device=args.device
-        )
+        # image_flags は model.forward() 専用。generate() は pixel_values から内部処理。
         with torch.no_grad():
             output_ids = model.generate(
                 input_ids=input_ids,
                 pixel_values=pixel_values,
-                image_flags=image_flags,
                 max_new_tokens=args.max_new_tokens,
                 do_sample=False,        # greedy，保证可复现
                 temperature=1.0,
