@@ -308,8 +308,11 @@ def main():
     IMG_CONTEXT_TOKEN = '<IMG_CONTEXT>'
     model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
 
-    # 开启 gradient checkpointing 节省 activation 显存（约减少 40% 显存，略增加计算时间）
-    model.gradient_checkpointing_enable()
+    # 只对 Qwen2 LLM 开 gradient checkpointing，避免 PEFT 与 InternVL 外层的冲突
+    # model.gradient_checkpointing_enable() 会导致 PEFT 传 inputs_embeds 给 InternVL 报错
+    model.language_model.gradient_checkpointing_enable(
+        gradient_checkpointing_kwargs={"use_reentrant": False}
+    )
 
     # 图像处理器（448×448 单 tile）
     image_processor = CLIPImageProcessor.from_pretrained(
