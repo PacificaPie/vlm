@@ -400,7 +400,8 @@ def main():
     )
     model.to(args.device)
 
-    if dist.is_initialized():
+    # 只在多 GPU 时使用 DDP；单卡时 DDP + gradient checkpointing 会导致参数被标记两次
+    if dist.is_initialized() and dist.get_world_size() > 1:
         model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
     optimizer = optim.AdamW(
