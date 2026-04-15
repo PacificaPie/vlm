@@ -376,8 +376,8 @@ def main():
         weight_decay=0.01,
     )
 
-    # 热身用较大 batch，快速扫数据
-    warmup_loader = make_loader(batch_size=args.batch_size * 2)
+    # warmup 和 SFT 同样用 batch_size=1，单卡 32GB 显存限制
+    warmup_loader = make_loader(batch_size=args.batch_size)
     train_epoch(0, model, warmup_loader, optimizer, scaler, autocast_ctx,
                 args, stage_name='warmup', wandb=wandb)
 

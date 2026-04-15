@@ -37,7 +37,7 @@ torchrun \
     --batch_size    1 \
     --accumulation_steps 32 \
     --learning_rate 1e-5 \
-    --max_length    1024 \
+    --max_length    768 \
     --dtype         bfloat16 \
     --use_wandb     0 \
     --log_interval  10 \
