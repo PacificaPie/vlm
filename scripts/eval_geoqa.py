@@ -109,9 +109,10 @@ def evaluate(model, tokenizer, image_processor, image_token_str,
 
         # 图像预处理
         image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        _dtype = torch.bfloat16 if args.dtype == 'bfloat16' else torch.float16
         pixel_values = image_processor(
             images=image, return_tensors='pt'
-        )['pixel_values'].to(args.device)
+        )['pixel_values'].to(device=args.device, dtype=_dtype)
 
         # 推理
         image_flags = torch.ones(
