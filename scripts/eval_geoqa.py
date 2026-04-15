@@ -127,8 +127,10 @@ def evaluate(model, tokenizer, image_processor, image_token_str,
                 eos_token_id=tokenizer.eos_token_id,
             )
 
+        # InternVL3 的 generate() 内部用 inputs_embeds 调 language_model.generate()，
+        # 返回的 output_ids 只含新生成的 token（不含 prompt），直接 decode。
         response = tokenizer.decode(
-            output_ids[0][input_ids.shape[1]:], skip_special_tokens=True
+            output_ids[0], skip_special_tokens=True
         )
         pred = extract_answer(response)
 
