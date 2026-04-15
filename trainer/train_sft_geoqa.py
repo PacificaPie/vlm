@@ -294,6 +294,7 @@ def main():
         args.model_path,
         torch_dtype=dtype,
         trust_remote_code=True,
+        use_flash_attn=False,
     ).to(args.device)
 
     # 图像处理器（448×448 单 tile）

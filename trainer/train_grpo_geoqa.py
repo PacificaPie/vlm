@@ -228,7 +228,8 @@ def main():
 
     def load_model():
         m = AutoModel.from_pretrained(
-            args.model_path, torch_dtype=dtype, trust_remote_code=True
+            args.model_path, torch_dtype=dtype, trust_remote_code=True,
+            use_flash_attn=False,
         )
         m = PeftModel.from_pretrained(m, args.adapter_path)
         return m.merge_and_unload().to(args.device)
