@@ -96,11 +96,27 @@ def evaluate(model, tokenizer, image_processor, image_token_str,
             parse_fail += 1
             continue
 
-        # 构建 inference prompt（只含 user turn）
-        user_conv = [conversations[0]]
-        prompt = tokenizer.apply_chat_template(
-            user_conv, tokenize=False, add_generation_prompt=True
-        )
+        # 构建 inference prompt
+        if args.mode == 'baseline_fair':
+            # 公平基线：去掉 CoT 格式要求，只让模型直接给出 A/B/C/D
+            user_content = conversations[0]['content']
+            if '<image>' in user_content:
+                question_part = user_content.split('<image>', 1)[1].strip()
+            else:
+                question_part = user_content
+            fair_content = (
+                '请根据图片回答这道几何选择题，'
+                '直接给出答案字母（A/B/C/D）即可，不需要解释。\n'
+                f'<image>\n{question_part}'
+            )
+            prompt = tokenizer.apply_chat_template(
+                [{'role': 'user', 'content': fair_content}],
+                tokenize=False, add_generation_prompt=True
+            )
+        else:
+            prompt = tokenizer.apply_chat_template(
+                [conversations[0]], tokenize=False, add_generation_prompt=True
+            )
         prompt = prompt.replace('<image>', image_token_str)
 
         input_ids = tokenizer(
@@ -158,7 +174,7 @@ def main():
     parser.add_argument('--adapter_path', type=str, default=None,
                         help='LoRA adapter 目录（baseline 时不填）')
     parser.add_argument('--mode',         type=str, default='baseline',
-                        choices=['baseline', 'sft', 'grpo'])
+                        choices=['baseline', 'baseline_fair', 'sft', 'grpo'])
     parser.add_argument('--test_data',    type=str, default='dataset/geoqa/sft_test.parquet')
     parser.add_argument('--max_samples',  type=int, default=None,
                         help='限制评测样本数（调试用）')
