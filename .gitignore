@@ -20,9 +20,14 @@ dataset/geoqa/*.parquet
 # Logs & experiment tracking
 trainer/swanlog/
 logs/
-out/
 *.out
 *.err
+
+# Experiment outputs: ignore model weights but keep eval results
+out/*
+!out/geoqa/
+out/geoqa/*
+!out/geoqa/eval_*.json
 
 # macOS
 .DS_Store
