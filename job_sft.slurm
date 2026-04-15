@@ -2,9 +2,9 @@
 #SBATCH --job-name=geoqa_sft
 #SBATCH --account=cpsc4770
 #SBATCH --partition=education_gpu      # 课程账号可用分区（RTX 5000 Ada, 32GB×4）
-#SBATCH --gpus=rtx_5000_ada:2
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
+#SBATCH --gpus=rtx_5000_ada:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
 #SBATCH --time=08:00:00               # 32GB 显存比 96GB 慢，留多一点时间
 #SBATCH --output=logs/sft_%j.out
 #SBATCH --error=logs/sft_%j.err
@@ -13,6 +13,7 @@
 
 # ---------- 环境 ----------
 export PATH="/home/cpsc4770_rz377/.conda/envs/geoqa/bin:$PATH"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # 项目根目录
 cd /nfs/roberts/scratch/cpsc4770/cpsc4770_rz377/vlm
@@ -24,7 +25,7 @@ mkdir -p logs out/geoqa
 
 # ---------- 训练 ----------
 torchrun \
-    --nproc_per_node=2 \
+    --nproc_per_node=1 \
     --master_port=29500 \
     trainer/train_sft_geoqa.py \
     --model_path    /nfs/roberts/scratch/cpsc4770/cpsc4770_rz377/InternVL3-8B \
@@ -34,13 +35,13 @@ torchrun \
     --warmup_steps  200 \
     --warmup_lr     1e-4 \
     --epochs        3 \
-    --batch_size    2 \
-    --accumulation_steps 8 \
+    --batch_size    1 \
+    --accumulation_steps 32 \
     --learning_rate 1e-5 \
-    --max_length    1024 \
+    --max_length    768 \
     --dtype         bfloat16 \
     --use_wandb     0 \
     --log_interval  10 \
     --save_interval 200
 
-# 有效 batch size = 2 (per GPU) × 2 (GPU) × 8 (accumulation) = 32 ≈ proposal 的 batch_size=32
+# 有效 batch size = 1 (per GPU) × 1 (GPU) × 32 (accumulation) = 32 ≈ proposal 的 batch_size=32
