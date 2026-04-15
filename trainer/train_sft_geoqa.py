@@ -81,25 +81,27 @@ def apply_lora_and_unfreeze(model, lora_rank: int = 16):
     Stage 2: 对语言模型的 attention 层加 LoRA，并解冻视觉部分。
     LoRA 只加在语言模型上，视觉编码器继续全参训练。
     """
-    # 先恢复所有参数可训练，再 apply LoRA（LoRA 会冻结非 adapter 的语言模型参数）
-    for param in model.parameters():
-        param.requires_grad = True
-
+    # LoRA 只加到内层 Qwen2 LLM，不包 InternVL 外层
+    # 原因：PEFT 在 gradient checkpointing 时会给 forward 传 inputs_embeds，
+    # Qwen2 支持该参数，InternVLChatModel 不支持，包外层会报 TypeError
     lora_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         r=lora_rank,
         lora_alpha=32,
         lora_dropout=0.05,
-        target_modules=[          # Qwen2 attention 层（InternVL3-8B 使用 Qwen2 LLM）
+        target_modules=[
             'q_proj', 'k_proj', 'v_proj', 'o_proj',
             'gate_proj', 'up_proj', 'down_proj',
         ],
-        # 只对 language_model 里的模块加 LoRA
-        modules_to_save=None,
     )
-    # peft 的 get_peft_model 会自动找 target_modules 并包装
-    model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()
+    model.language_model = get_peft_model(model.language_model, lora_config)
+    model.language_model.print_trainable_parameters()
+
+    # 解冻 ViT + MLP projector（继续全参训练）
+    for name, param in model.named_parameters():
+        if 'language_model' not in name:
+            param.requires_grad = True
+
     return model
 
 
@@ -308,11 +310,9 @@ def main():
     IMG_CONTEXT_TOKEN = '<IMG_CONTEXT>'
     model.img_context_token_id = tokenizer.convert_tokens_to_ids(IMG_CONTEXT_TOKEN)
 
-    # 只对 Qwen2 LLM 开 gradient checkpointing，避免 PEFT 与 InternVL 外层的冲突
-    # model.gradient_checkpointing_enable() 会导致 PEFT 传 inputs_embeds 给 InternVL 报错
-    model.language_model.gradient_checkpointing_enable(
-        gradient_checkpointing_kwargs={"use_reentrant": False}
-    )
+    # gradient checkpointing 在 apply_lora_and_unfreeze 之后再开，
+    # 确保对 PEFT 包后的 language_model 生效
+    pass  # 在 Stage 2 开始前设置，见下方
 
     # 图像处理器（448×448 单 tile）
     image_processor = CLIPImageProcessor.from_pretrained(
@@ -392,8 +392,12 @@ def main():
     Logger('Stage 2: LoRA SFT')
     Logger('=' * 60)
 
-    # apply LoRA（会修改 model，返回 PeftModel）
+    # apply LoRA（只包 language_model，避免 PEFT 把 inputs_embeds 传给 InternVL 外层）
     model = apply_lora_and_unfreeze(model, lora_rank=args.lora_rank)
+    # 在 PEFT 包装之后再开 gradient checkpointing，此时 language_model 已是 PeftModel(Qwen2)
+    model.language_model.gradient_checkpointing_enable(
+        gradient_checkpointing_kwargs={"use_reentrant": False}
+    )
     model.to(args.device)
 
     if dist.is_initialized():
