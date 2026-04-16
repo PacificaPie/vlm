@@ -300,44 +300,62 @@ class GRPOTrainerBase:
         return all_responses, all_attention_masks, all_response_texts
     
     def _generate_single(self, prompt_ids, attention_mask, pixel_values):
-        """自回归生成单个响应：每次预测下一个 token，直到 EOS 或达到最大长度"""
+        """自回归生成单个响应，使用 KV cache 加速。
+
+        第一步：完整 prompt + 图像编码（InternVLChatModel.forward），缓存 KV。
+        后续步：只处理新 token（language_model.forward + past_key_values），跳过 ViT 重编码。
+        """
         batch_size, prompt_len = prompt_ids.shape
-        
+
         generated = prompt_ids.clone()
         current_attention_mask = attention_mask.clone()
         finished = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
-        
-        for _ in range(self.max_new_tokens):
+        past_key_values = None
+
+        image_flags = torch.ones(
+            pixel_values.size(0), 1, dtype=torch.long, device=self.device
+        )
+
+        for step_i in range(self.max_new_tokens):
             if finished.all():
                 break
-            
+
             with torch.no_grad():
-                image_flags = torch.ones(
-                    pixel_values.size(0), 1,
-                    dtype=torch.long, device=self.device
-                )
-                outputs = self.model(
-                    input_ids=generated,
-                    attention_mask=current_attention_mask,
-                    pixel_values=pixel_values,
-                    image_flags=image_flags,
-                )
-            
-            # 温度采样：温度越高越随机，越低越确定
+                if step_i == 0:
+                    # 第一步：完整 prompt，包含图像编码，建立 KV cache
+                    outputs = self.model(
+                        input_ids=generated,
+                        attention_mask=current_attention_mask,
+                        pixel_values=pixel_values,
+                        image_flags=image_flags,
+                        use_cache=True,
+                    )
+                else:
+                    # 后续步：只处理最新 token，复用 KV cache，跳过 ViT 重编码
+                    new_embeds = self.model.language_model.get_input_embeddings()(
+                        generated[:, -1:]
+                    )
+                    outputs = self.model.language_model(
+                        inputs_embeds=new_embeds,
+                        attention_mask=current_attention_mask,
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                    )
+                past_key_values = outputs.past_key_values
+
+            # 温度采样
             next_token_logits = outputs.logits[:, -1, :] / self.temperature
             probs = F.softmax(next_token_logits, dim=-1)
             next_token = torch.multinomial(probs, num_samples=1)
-            
-            # 拼接新 token 到序列末尾
+
             generated = torch.cat([generated, next_token], dim=-1)
             current_attention_mask = torch.cat([
                 current_attention_mask,
                 torch.ones(batch_size, 1, dtype=torch.long, device=self.device)
             ], dim=-1)
-            
-            # 标记已生成 EOS 的序列
+
             finished = finished | (next_token.squeeze(-1) == self.tokenizer.eos_token_id)
-        
+
         return generated, current_attention_mask
     
     def compute_log_probs(self, model, input_ids, attention_mask, pixel_values, labels, prompt_mask):
