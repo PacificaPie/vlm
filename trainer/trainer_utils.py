@@ -394,10 +394,13 @@ class GRPOTrainerBase:
         prompt_mask = prompt_mask[:, 1:]
         
         # 计算每个 token 的 log prob
-        log_probs = F.log_softmax(logits, dim=-1)
-        token_log_probs = torch.gather(
-            log_probs, dim=-1, index=labels.unsqueeze(-1)
-        ).squeeze(-1)
+        # 用 F.cross_entropy（fused kernel）替代 log_softmax + gather，
+        # 避免实例化完整的 [batch, seq, vocab] 中间张量，节省 ~3GB 显存。
+        token_log_probs = -F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)),
+            labels.reshape(-1),
+            reduction='none',
+        ).reshape(logits.size(0), logits.size(1))
         
         # 构建 response_mask，只保留 response 的真实 token
         # 
