@@ -2,8 +2,8 @@
 #SBATCH --job-name=geoqa_grpo
 #SBATCH --account=lafferty
 #SBATCH --partition=gpu
-#SBATCH --qos=normal
-#SBATCH --gpus=a100:1
+#SBATCH --qos=qos_lafferty
+#SBATCH --gpus=h100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=80G
 #SBATCH --time=12:00:00
