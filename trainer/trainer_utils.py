@@ -273,9 +273,11 @@ class GRPOTrainerBase:
             all_attention_masks.append(gen_attention_mask)
             
             # 解码响应文本（跳过 prompt 部分）
+            # 使用 padded prompt 长度（而非实际长度）作为切片点，
+            # 避免左填充的样本把尾部 prompt token 混入 response。
+            padded_prompt_len = prompt_ids.size(1)
             for i in range(batch_size):
-                prompt_len = (attention_mask[i] == 1).sum().item()
-                response_ids = generated[i, prompt_len:]
+                response_ids = generated[i, padded_prompt_len:]
                 response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
                 all_response_texts.append(response_text)
         
