@@ -244,7 +244,7 @@ def main():
             target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj',
                             'gate_proj', 'up_proj', 'down_proj'],
         )
-        m.language_model = get_peft_model(m.language_model, _sft_lora_cfg)
+        m.language_model = get_peft_model(m.language_model, _sft_lora_cfg, autocast_adapter_dtype=False)
         shard_files = sorted(
             glob.glob(os.path.join(args.adapter_path, '*.safetensors'))
         )
@@ -275,7 +275,7 @@ def main():
         target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj',
                         'gate_proj', 'up_proj', 'down_proj'],
     )
-    model.language_model = get_peft_model(model.language_model, lora_config)
+    model.language_model = get_peft_model(model.language_model, lora_config, autocast_adapter_dtype=False)
     model.language_model.print_trainable_parameters()
     # 冻结 ViT 和 MLP projector，只训练 language_model 中的 LoRA 参数
     for name, param in model.named_parameters():
