@@ -2,6 +2,7 @@ import sys
 import os
 __package__ = "dataset"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import re
 import json
 import torch
 import io
@@ -223,9 +224,14 @@ class GeoQADataset(Dataset):
 
     def _get_grpo_item(self, conversations, pixel_values, index: int):
         """GRPO 模式：返回 dict{prompt_ids, pixel_values, answer}"""
-        # conversations 只含 user turn（来自 rl_base.parquet）
+        # 从 assistant turn 提取 ground truth 答案（<answer>X</answer>）
+        assistant_content = conversations[1]['content'] if len(conversations) > 1 else ''
+        m = re.search(r'<answer>\s*([A-D])\s*</answer>', assistant_content, re.IGNORECASE)
+        answer = m.group(1).upper() if m else ''
+
+        # 只用 user turn 作为 prompt
         prompt = self.tokenizer.apply_chat_template(
-            conversations,
+            [conversations[0]],
             tokenize=False,
             add_generation_prompt=True,  # 加上 <|im_start|>assistant\n，让模型续写
         )
@@ -233,8 +239,6 @@ class GeoQADataset(Dataset):
         prompt_ids = self.tokenizer(
             prompt, add_special_tokens=False
         ).input_ids[:self.max_length]
-
-        answer = self.table['answer'][index].as_py()
 
         return {
             'prompt_ids':   torch.tensor(prompt_ids, dtype=torch.long),
