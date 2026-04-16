@@ -235,10 +235,20 @@ def main():
             model.language_model = model.language_model.merge_and_unload()
             print('  LoRA merged.')
         else:
-            # grpo: 用标准 PEFT adapter（adapter_config.json + adapter_model.safetensors）
-            print(f'[GRPO] 加载 LoRA adapter: {args.adapter_path}')
-            model = PeftModel.from_pretrained(model, args.adapter_path)
-            model = model.merge_and_unload()
+            # grpo 最终 checkpoint：完整合并模型（_save_grpo suffix='final'）
+            # 中间 checkpoint：language_model 的 LoRA adapter（adapter_config.json 存在）
+            adapter_cfg = os.path.join(args.adapter_path, 'adapter_config.json')
+            if os.path.exists(adapter_cfg):
+                print(f'[GRPO] 加载 language_model LoRA adapter: {args.adapter_path}')
+                model.language_model = PeftModel.from_pretrained(
+                    model.language_model, args.adapter_path
+                )
+                model.language_model = model.language_model.merge_and_unload()
+            else:
+                print(f'[GRPO] 加载完整合并 GRPO 模型: {args.adapter_path}')
+                model = AutoModel.from_pretrained(
+                    args.adapter_path, torch_dtype=dtype, trust_remote_code=True
+                )
 
     model = model.to(args.device).eval()
     model.img_context_token_id = tokenizer.convert_tokens_to_ids('<IMG_CONTEXT>')

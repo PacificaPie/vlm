@@ -84,7 +84,8 @@ class GeoQAGRPOTrainer(GRPOTrainerBase):
     def train_step(self, batch, answers):
         prompt_ids       = batch['prompt_ids'].to(self.device)
         attention_mask   = batch['attention_mask'].to(self.device)
-        pixel_values     = batch['pixel_values'].to(self.device)
+        _model_dtype = next(self.model.parameters()).dtype
+        pixel_values = batch['pixel_values'].to(device=self.device, dtype=_model_dtype)
 
         batch_size = prompt_ids.size(0)
         prompt_len = prompt_ids.size(1)
@@ -274,8 +275,12 @@ def main():
         target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj',
                         'gate_proj', 'up_proj', 'down_proj'],
     )
-    model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()
+    model.language_model = get_peft_model(model.language_model, lora_config)
+    model.language_model.print_trainable_parameters()
+    # 冻结 ViT 和 MLP projector，只训练 language_model 中的 LoRA 参数
+    for name, param in model.named_parameters():
+        if 'language_model' not in name:
+            param.requires_grad = False
 
     image_token_str = f'<img>{"<IMG_CONTEXT>" * model.num_image_token}</img>'
 
@@ -378,8 +383,19 @@ def main():
 
 def _save_grpo(model, args, suffix='final'):
     path = os.path.join(args.save_dir, f'grpo_geoqa_{suffix}')
+    os.makedirs(path, exist_ok=True)
     raw = model.module if hasattr(model, 'module') else model
-    raw.save_pretrained(path)
+    if suffix == 'final':
+        # 最终保存：合并 LoRA 权重，保存完整模型（便于 eval 直接加载）
+        if hasattr(raw.language_model, 'merge_and_unload'):
+            raw.language_model = raw.language_model.merge_and_unload()
+        raw.save_pretrained(path)
+    else:
+        # 中间 checkpoint：只保存 LoRA adapter，节省磁盘空间
+        if hasattr(raw.language_model, 'save_pretrained'):
+            raw.language_model.save_pretrained(path)
+        else:
+            torch.save(raw.language_model.state_dict(), path + '.pth')
     Logger(f'Saved → {path}')
 
 
