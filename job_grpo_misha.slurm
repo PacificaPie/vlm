@@ -11,6 +11,7 @@
 #SBATCH --error=logs/grpo_%j.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=zhangruoyang511@gmail.com
+#SBATCH --requeue
 
 module load miniconda/24.3.0
 conda activate geoqa
