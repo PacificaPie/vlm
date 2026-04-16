@@ -321,8 +321,9 @@ class GRPOTrainerBase:
                 break
 
             with torch.no_grad():
-                if step_i == 0:
-                    # 第一步：完整 prompt，包含图像编码，建立 KV cache
+                if step_i == 0 or past_key_values is None:
+                    # 完整序列 forward：第一步建立 KV cache；
+                    # 若模型不支持 use_cache（past_key_values 为 None），则每步都走此路径作为回退。
                     outputs = self.model(
                         input_ids=generated,
                         attention_mask=current_attention_mask,
@@ -341,7 +342,7 @@ class GRPOTrainerBase:
                         past_key_values=past_key_values,
                         use_cache=True,
                     )
-                past_key_values = outputs.past_key_values
+                past_key_values = outputs.past_key_values  # None 表示模型不支持 KV cache
 
             # 温度采样
             next_token_logits = outputs.logits[:, -1, :] / self.temperature

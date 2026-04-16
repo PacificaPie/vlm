@@ -96,18 +96,22 @@ class GeoQAGRPOTrainer(GRPOTrainerBase):
         )
 
         # 2. 计算每个响应的奖励
+        # response_texts 排列: [gen0_s0, gen0_s1, gen1_s0, gen1_s1, ...]
+        # 正确的答案索引: i % batch_size（而非 i // num_generations）
         rewards = torch.tensor([
-            compute_reward(response_texts[i], answers[i // self.num_generations])
+            compute_reward(response_texts[i], answers[i % batch_size])
             for i in range(len(response_texts))
         ], dtype=torch.float32, device=self.device)
 
         # 3. 组内相对优势（GRPO 核心）
-        rewards_grouped = rewards.view(batch_size, self.num_generations)
-        mean_r = rewards_grouped.mean(dim=1, keepdim=True)
-        std_r  = rewards_grouped.std(dim=1,  keepdim=True) + 1e-8
+        # rewards 排列: [g0s0, g0s1, g1s0, g1s1, ...] → view(num_gen, batch) 按样本分组
+        rewards_grouped = rewards.view(self.num_generations, batch_size)
+        mean_r = rewards_grouped.mean(dim=0, keepdim=True)   # 每个样本跨 generation 的均值
+        std_r  = rewards_grouped.std(dim=0,  keepdim=True) + 1e-8
         advantages = ((rewards_grouped - mean_r) / std_r).view(-1).detach()
 
-        expanded_pv    = pixel_values.repeat_interleave(self.num_generations, dim=0)
+        # pixel_values 需与 generated_ids 对齐: [g0s0,g0s1,g1s0,g1s1,...] → repeat 而非 repeat_interleave
+        expanded_pv    = pixel_values.repeat(self.num_generations, 1, 1, 1)
         prompt_mask    = torch.zeros_like(generated_ids)
         prompt_mask[:, :prompt_len] = 1
 
