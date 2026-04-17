@@ -245,10 +245,23 @@ def main():
                 )
                 model.language_model = model.language_model.merge_and_unload()
             else:
-                print(f'[GRPO] 加载完整合并 GRPO 模型: {args.adapter_path}')
-                model = AutoModel.from_pretrained(
-                    args.adapter_path, torch_dtype=dtype, trust_remote_code=True
+                # save_pretrained 只保存权重，不复制 trust_remote_code 的自定义文件，
+                # 所以不能用 AutoModel.from_pretrained(adapter_path)。
+                # 正确做法：架构沿用已加载的 model（来自 model_path），
+                # 直接把 GRPO safetensors 权重 load_state_dict 进去。
+                print(f'[GRPO] 加载完整合并 GRPO 权重: {args.adapter_path}')
+                shard_files = sorted(
+                    glob.glob(os.path.join(args.adapter_path, '*.safetensors'))
                 )
+                if not shard_files:
+                    raise FileNotFoundError(
+                        f'No .safetensors files found in {args.adapter_path}'
+                    )
+                full_state = {}
+                for sf in shard_files:
+                    full_state.update(load_safetensors(sf))
+                missing, unexpected = model.load_state_dict(full_state, strict=False)
+                print(f'  GRPO weights loaded: {len(missing)} missing, {len(unexpected)} unexpected')
 
     model = model.to(args.device).eval()
     model.img_context_token_id = tokenizer.convert_tokens_to_ids('<IMG_CONTEXT>')
