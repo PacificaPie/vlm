@@ -21,6 +21,7 @@ mkdir -p logs
 python scripts/eval_geoqa.py \
     --model_path  ~/scratch/grpo_data/InternVL3-8B \
     --adapter_path out/geoqa/grpo_geoqa_final \
+    --test_data   ~/scratch/grpo_data/geoqa/sft_test.parquet \
     --mode        grpo \
     --dtype       bfloat16 \
     --output_file out/geoqa/eval_grpo.json
