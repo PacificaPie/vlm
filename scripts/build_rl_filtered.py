@@ -138,9 +138,9 @@ def main():
             images=image, return_tensors='pt'
         )['pixel_values'].to(device=device, dtype=dtype)  # [1, C, H, W]
 
-        # 复制 K 份，批量生成
-        input_ids_k    = input_ids.expand(args.k, -1).to(device)    # [K, seq_len]
-        pixel_values_k = pixel_values.expand(args.k, -1, -1, -1)    # [K, C, H, W]
+        # 复制 K 份，批量生成（用 repeat 保证内存连续，避免 CUDA 报错）
+        input_ids_k    = input_ids.repeat(args.k, 1).to(device)       # [K, seq_len]
+        pixel_values_k = pixel_values.repeat(args.k, 1, 1, 1)         # [K, C, H, W]
 
         with torch.no_grad():
             output_ids = model.generate(
