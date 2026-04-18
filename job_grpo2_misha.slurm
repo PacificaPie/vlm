@@ -37,7 +37,7 @@ torchrun \
     --temperature     0.7 \
     --beta            0.04 \
     --clip_range      0.2 \
-    --epochs          3 \
+    --epochs          2 \
     --batch_size      1 \
     --learning_rate   5e-7 \
     --log_interval    10 \
