@@ -15,11 +15,14 @@ import matplotlib.pyplot as plt
 
 def parse_log(log_path: str):
     """
-    解析日志，返回 (steps, losses, rewards, kls)。
-    若日志中存在多次 run（preempt 后 requeue），只保留最后一段。
+    解析日志，返回 (global_steps, losses, rewards, kls)。
+
+    支持多 epoch：x 轴使用 global_step = (epoch-1)*steps_per_epoch + step。
+    支持 preempt/requeue：当 epoch 回退到 1 且 global_step 大幅减小时，
+    视为新一轮 run，只保留最后一段。
     """
     pattern = re.compile(
-        r'Step\[(\d+)/\d+\]\s+loss=(\S+)\s+reward=(\S+)\s+kl=(\S+)'
+        r'Epoch\[(\d+)/\d+\]\s+Step\[(\d+)/(\d+)\]\s+loss=(\S+)\s+reward=(\S+)\s+kl=(\S+)'
     )
 
     segments = []   # 每次 run 的数据
@@ -29,17 +32,30 @@ def parse_log(log_path: str):
         for line in f:
             m = pattern.search(line)
             if not m:
-                continue
-            step   = int(m.group(1))
-            loss   = float(m.group(2))
-            reward = float(m.group(3))
-            kl     = float(m.group(4))
+                # 兼容旧格式（无 Epoch 前缀）
+                m2 = re.search(r'Step\[(\d+)/(\d+)\]\s+loss=(\S+)\s+reward=(\S+)\s+kl=(\S+)', line)
+                if not m2:
+                    continue
+                step      = int(m2.group(1))
+                steps_tot = int(m2.group(2))
+                loss      = float(m2.group(3))
+                reward    = float(m2.group(4))
+                kl        = float(m2.group(5))
+                global_step = step
+            else:
+                epoch_cur = int(m.group(1))
+                step      = int(m.group(2))
+                steps_tot = int(m.group(3))
+                loss      = float(m.group(4))
+                reward    = float(m.group(5))
+                kl        = float(m.group(6))
+                global_step = (epoch_cur - 1) * steps_tot + step
 
-            # step 归零说明新一轮 run 开始
-            if current and step < current[-1][0]:
+            # preempt 重启：epoch 回到 1 且 global_step 大幅小于当前最大值
+            if current and global_step < current[-1][0] - steps_tot:
                 segments.append(current)
                 current = []
-            current.append((step, loss, reward, kl))
+            current.append((global_step, loss, reward, kl))
 
     if current:
         segments.append(current)
@@ -50,7 +66,7 @@ def parse_log(log_path: str):
     if len(segments) > 1:
         print(f'检测到 {len(segments)} 段 run（preempt/requeue），使用最后一段')
 
-    data   = segments[-1]
+    data    = segments[-1]
     steps   = [d[0] for d in data]
     losses  = [d[1] for d in data]
     rewards = [d[2] for d in data]
