@@ -64,9 +64,10 @@ def parse_log(log_path: str):
         raise ValueError(f'No Step records found in {log_path}')
 
     if len(segments) > 1:
-        print(f'检测到 {len(segments)} 段 run（preempt/requeue），使用最后一段')
+        print(f'检测到 {len(segments)} 段 run（preempt/requeue），使用最长一段')
 
-    data    = segments[-1]
+    # 使用最高 global_step 的那段（最完整的训练记录）
+    data    = max(segments, key=lambda seg: seg[-1][0])
     steps   = [d[0] for d in data]
     losses  = [d[1] for d in data]
     rewards = [d[2] for d in data]
