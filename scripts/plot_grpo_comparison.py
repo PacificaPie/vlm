@@ -93,6 +93,13 @@ def main():
     print(f'GRPO1: {len(steps1)} records, step {steps1[0]}→{steps1[-1]}')
     print(f'GRPO2: {len(steps2)} records, step {steps2[0]}→{steps2[-1]}')
 
+    # 归一化 x 轴为训练进度百分比，让两条曲线都铺满全宽
+    def to_pct(steps):
+        mx = max(steps) if max(steps) > 0 else 1
+        return [s / mx * 100 for s in steps]
+
+    pct1, pct2 = to_pct(steps1), to_pct(steps2)
+
     C1, C2 = '#2E75B6', '#C55A11'   # blue / orange
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
@@ -101,47 +108,46 @@ def main():
 
     # ── Reward ──
     ax = axes[0]
-    ax.plot(steps1, rew1,          alpha=0.18, color=C1, lw=0.8)
-    ax.plot(steps1, smooth(rew1),  color=C1, lw=2.0, label='GRPO1  (full dataset, 1 epoch)')
-    ax.plot(steps2, rew2,          alpha=0.25, color=C2, lw=0.8)
-    ax.plot(steps2, smooth(rew2),  color=C2, lw=2.0,
-            label='GRPO2  (Pass@K filtered, 2 epochs)')
+    ax.plot(pct1, rew1,          alpha=0.18, color=C1, lw=0.8)
+    ax.plot(pct1, smooth(rew1),  color=C1, lw=2.0, label='GRPO1  (full dataset, 3509 steps)')
+    ax.plot(pct2, rew2,          alpha=0.25, color=C2, lw=0.8)
+    ax.plot(pct2, smooth(rew2),  color=C2, lw=2.0,
+            label='GRPO2  (Pass@K filtered, 270 steps shown)')
 
     ax.axhline(3.0, color='gray', ls='--', lw=0.9, alpha=0.6, label='Max reward = 3.0')
     ax.set_title('Mean Reward per Step', fontsize=11)
-    ax.set_xlabel('Training Step'); ax.set_ylabel('Mean Reward')
-    ax.set_ylim(-0.1, 3.4)
+    ax.set_xlabel('Training Progress (%)'); ax.set_ylabel('Mean Reward')
+    ax.set_ylim(-0.1, 3.4); ax.set_xlim(-1, 101)
     ax.legend(fontsize=8.5, loc='lower right')
 
     # annotation: step-0 reward
-    r0_1 = rew1[0]; r0_2 = rew2[0]
-    ax.annotate(f'step 0: {r0_1:.2f}', xy=(steps1[0], r0_1),
-                xytext=(steps1[-1]*0.05, r0_1 - 0.35),
-                fontsize=8, color=C1,
+    ax.annotate(f'start: {rew1[0]:.2f}', xy=(pct1[0], rew1[0]),
+                xytext=(8, rew1[0] - 0.45), fontsize=8.5, color=C1,
                 arrowprops=dict(arrowstyle='->', color=C1, lw=1.0))
-    ax.annotate(f'step 0: {r0_2:.2f}', xy=(steps2[0], r0_2),
-                xytext=(steps2[-1]*0.3 + 10, r0_2 - 0.5),
-                fontsize=8, color=C2,
+    ax.annotate(f'start: {rew2[0]:.2f}', xy=(pct2[0], rew2[0]),
+                xytext=(8, rew2[0] + 0.35), fontsize=8.5, color=C2,
                 arrowprops=dict(arrowstyle='->', color=C2, lw=1.0))
 
     # ── Loss ──
     ax = axes[1]
-    ax.plot(steps1, loss1,          alpha=0.18, color=C1, lw=0.8)
-    ax.plot(steps1, smooth(loss1),  color=C1, lw=2.0, label='GRPO1')
-    ax.plot(steps2, loss2,          alpha=0.25, color=C2, lw=0.8)
-    ax.plot(steps2, smooth(loss2),  color=C2, lw=2.0, label='GRPO2')
+    ax.plot(pct1, loss1,          alpha=0.18, color=C1, lw=0.8)
+    ax.plot(pct1, smooth(loss1),  color=C1, lw=2.0, label='GRPO1')
+    ax.plot(pct2, loss2,          alpha=0.25, color=C2, lw=0.8)
+    ax.plot(pct2, smooth(loss2),  color=C2, lw=2.0, label='GRPO2')
     ax.set_title('Policy Loss', fontsize=11)
-    ax.set_xlabel('Training Step'); ax.set_ylabel('Loss')
+    ax.set_xlabel('Training Progress (%)'); ax.set_ylabel('Loss')
+    ax.set_xlim(-1, 101)
     ax.legend(fontsize=8.5)
 
     # ── KL ──
     ax = axes[2]
-    ax.plot(steps1, kl1,          alpha=0.18, color=C1, lw=0.8)
-    ax.plot(steps1, smooth(kl1),  color=C1, lw=2.0, label='GRPO1')
-    ax.plot(steps2, kl2,          alpha=0.25, color=C2, lw=0.8)
-    ax.plot(steps2, smooth(kl2),  color=C2, lw=2.0, label='GRPO2')
+    ax.plot(pct1, kl1,          alpha=0.18, color=C1, lw=0.8)
+    ax.plot(pct1, smooth(kl1),  color=C1, lw=2.0, label='GRPO1')
+    ax.plot(pct2, kl2,          alpha=0.25, color=C2, lw=0.8)
+    ax.plot(pct2, smooth(kl2),  color=C2, lw=2.0, label='GRPO2')
     ax.set_title('KL vs Reference', fontsize=11)
-    ax.set_xlabel('Training Step'); ax.set_ylabel('KL Divergence')
+    ax.set_xlabel('Training Progress (%)'); ax.set_ylabel('KL Divergence')
+    ax.set_xlim(-1, 101)
     ax.legend(fontsize=8.5)
 
     plt.tight_layout()
